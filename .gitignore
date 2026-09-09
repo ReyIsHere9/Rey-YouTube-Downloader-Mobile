@@ -1,0 +1,16 @@
+# Secrets / signing
+keystore.properties
+keystore/
+
+# Android / Gradle build output
+.gradle/
+local.properties
+build/
+app/build/
+dist/
+*.iml
+.idea/
+captures/
+
+# misc
+.DS_Store
