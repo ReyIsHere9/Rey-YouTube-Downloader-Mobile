@@ -237,6 +237,8 @@ class MainActivity : Activity() {
 
     private fun downloadSelected() {
         val q = opts()
+        val ffmpeg = java.io.File(applicationInfo.nativeLibraryDir, "libffmpeg.so")
+            .takeIf { it.exists() }?.path ?: ""
         val targets = mutableListOf<String>()
         for (i in rowUrls.indices) {
             if (i < rowCbs.size && rowCbs[i].isChecked) {
@@ -255,7 +257,8 @@ class MainActivity : Activity() {
             try {
                 for (u in targets) {
                     val r: PyObject = mod.callAttr(
-                        "download", u, q.mode, q.quality, q.audio, q.subs, q.subLang)
+                        "download", u, q.mode, q.quality, q.audio, q.subs,
+                        q.subLang, ffmpeg)
                     runOnUiThread { appendLog(r.toString()) }
                 }
                 runOnUiThread { appendLog("Finished.") }

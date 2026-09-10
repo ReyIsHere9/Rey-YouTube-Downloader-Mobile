@@ -88,18 +88,22 @@ def _quality_sort(q):
 
 
 def download(url, mode="mp4", quality="Best", audio="mp3",
-             subs=False, sub_lang="en"):
+             subs=False, sub_lang="en", ffmpeg=""):
     """Download a single URL. Returns a status string."""
     import yt_dlp
     dd = _work_dir()
+    outtmpl = join(dd, "%(title).120s [%(id)s].%(ext)s")
     o = {
-        "outtmpl": join(dd, "%(title).120s [%(id)s].%(ext)s"),
+        "outtmpl": outtmpl,
         "quiet": True, "no_warnings": True,
         "format_sort": _quality_sort(quality),
     }
-    ff = _ffmpeg()
-    if ff:
-        o["ffmpeg_location"] = ff
+    if ffmpeg:
+        o["ffmpeg_location"] = ffmpeg
+    else:
+        ff = _ffmpeg()
+        if ff:
+            o["ffmpeg_location"] = ff
 
     if mode == "video":
         o["format"] = "bv*"
