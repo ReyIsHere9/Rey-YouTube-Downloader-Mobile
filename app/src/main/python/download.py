@@ -37,8 +37,14 @@ def _ffmpeg():
     return shutil.which("ffmpeg")
 
 
+def _thumb(vid):
+    if not vid:
+        return ""
+    return "https://i.ytimg.com/vi/%s/mqdefault.jpg" % vid
+
+
 def preview(text):
-    """Return a list of [title, url] pairs from a newline-separated link list."""
+    """Return [title, url, thumbnail] rows from a newline-separated link list."""
     import yt_dlp
     urls = [u.strip() for u in text.splitlines() if u.strip()]
     out = []
@@ -49,19 +55,22 @@ def preview(text):
                 info = y.extract_info(u, download=False)
                 if info and info.get("entries"):
                     for e in info["entries"]:
-                        if e:
-                            ti = (e.get("title") or "") or ""
-                            eu = (e.get("url") or "") or ""
-                            if not eu and e.get("id"):
-                                eu = "https://www.youtube.com/watch?v=" + e["id"]
-                            if eu:
-                                out.append([ti, eu])
+                        if not e:
+                            continue
+                        ti = e.get("title") or ""
+                        vid = e.get("id") or ""
+                        eu = e.get("url") or ""
+                        if not eu and vid:
+                            eu = "https://www.youtube.com/watch?v=" + vid
+                        if eu:
+                            out.append([ti, eu, _thumb(vid)])
                 elif info:
-                    ti = (info.get("title") or "") or ""
-                    eu = (info.get("webpage_url") or u) or ""
-                    out.append([ti, eu])
+                    ti = info.get("title") or ""
+                    eu = info.get("webpage_url") or u
+                    th = info.get("thumbnail") or _thumb(info.get("id") or "")
+                    out.append([ti, eu, th])
     except Exception as e:
-        out.append(["ERROR: %s" % e, ""])
+        out.append(["ERROR: %s" % e, "", ""])
     return out
 
 
@@ -71,8 +80,9 @@ def _quality_sort(q):
     return ["res:%s" % q.rstrip("p")]
 
 
-def download(url, mode="mp4", quality="Best", audio="mp3",
-             subs=False, sub_lang="en", ffmpeg="", callback=None):
+def download(url, mode="mp4", quality="Best", audio="mp3", subs=False,
+             sub_lang="en", ffmpeg="", embed_subs=False, embed_thumb=False,
+             callback=None):
     """Download one URL. Calls callback.onProgress(pct, text) if given.
     Returns JSON: {ok, files:[...], dir, title, error?}"""
     import yt_dlp
@@ -118,14 +128,19 @@ def download(url, mode="mp4", quality="Best", audio="mp3",
     else:
         o["format"] = "b[ext=mp4]/bv*+ba/b"
         o["merge_output_format"] = "mp4"
+
     if subs:
         langs = ["all"] if sub_lang.lower() == "all" else [sub_lang]
         o["subtitleslangs"] = langs
         o["writesubtitles"] = True
         o["writeautomaticsub"] = True
-        if mode == "mp4":
+        if mode == "mp4" and embed_subs:
             o["embedsubs"] = True
             o["subformat"] = "srt"
+
+    if embed_thumb:
+        o["embedthumbnail"] = True
+        o["embedmetadata"] = True
 
     try:
         with yt_dlp.YoutubeDL(o) as y:
@@ -133,7 +148,6 @@ def download(url, mode="mp4", quality="Best", audio="mp3",
         title = (info or {}).get("title") or ""
         files = [rd.get("filepath") for rd in (info or {}).get("requested_downloads", [])
                  if rd.get("filepath") and os.path.exists(rd["filepath"])]
-        # include side files (separate subtitles, etc.) produced just now
         try:
             for f in os.listdir(dd):
                 fp = join(dd, f)

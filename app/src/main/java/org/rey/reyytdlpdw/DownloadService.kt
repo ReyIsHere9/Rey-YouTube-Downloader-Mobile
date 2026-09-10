@@ -24,11 +24,14 @@ class DownloadService : Service() {
         const val EXTRA_AUDIO = "audio"
         const val EXTRA_SUBS = "subs"
         const val EXTRA_LANG = "lang"
+        const val EXTRA_EMBED_SUBS = "embed_subs"
+        const val EXTRA_EMBED_THUMB = "embed_thumb"
         const val CHANNEL = "rey_downloads"
         const val NOTIF_ID = 4211
 
         fun start(context: Context, urls: ArrayList<String>, mode: String,
-                  quality: String, audio: String, subs: Boolean, lang: String) {
+                  quality: String, audio: String, subs: Boolean, lang: String,
+                  embedSubs: Boolean, embedThumb: Boolean) {
             val i = Intent(context, DownloadService::class.java).apply {
                 putStringArrayListExtra(EXTRA_URLS, urls)
                 putExtra(EXTRA_MODE, mode)
@@ -36,6 +39,8 @@ class DownloadService : Service() {
                 putExtra(EXTRA_AUDIO, audio)
                 putExtra(EXTRA_SUBS, subs)
                 putExtra(EXTRA_LANG, lang)
+                putExtra(EXTRA_EMBED_SUBS, embedSubs)
+                putExtra(EXTRA_EMBED_THUMB, embedThumb)
             }
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                 context.startForegroundService(i)
@@ -62,12 +67,14 @@ class DownloadService : Service() {
         val audio = intent.getStringExtra(EXTRA_AUDIO) ?: "mp3"
         val subs = intent.getBooleanExtra(EXTRA_SUBS, false)
         val lang = intent.getStringExtra(EXTRA_LANG) ?: "en"
+        val embedSubs = intent.getBooleanExtra(EXTRA_EMBED_SUBS, false)
+        val embedThumb = intent.getBooleanExtra(EXTRA_EMBED_THUMB, true)
 
         createChannel()
         startForeground(NOTIF_ID, buildNotification(0, "Starting\u2026", true))
 
         Thread {
-            runDownloads(urls, mode, quality, audio, subs, lang)
+            runDownloads(urls, mode, quality, audio, subs, lang, embedSubs, embedThumb)
             DownloadState.update(false, 100, "Finished.", "")
             notify(buildNotification(100, "Finished", false))
             stopForeground(STOP_FOREGROUND_REMOVE)
@@ -77,7 +84,8 @@ class DownloadService : Service() {
     }
 
     private fun runDownloads(urls: List<String>, mode: String, quality: String,
-                             audio: String, subs: Boolean, lang: String) {
+                             audio: String, subs: Boolean, lang: String,
+                             embedSubs: Boolean, embedThumb: Boolean) {
         val module = Python.getInstance().getModule("download")
         val ffmpeg = File(applicationInfo.nativeLibraryDir, "libffmpeg.so")
             .takeIf { it.exists() }?.path ?: ""
@@ -90,7 +98,8 @@ class DownloadService : Service() {
                 notify(buildNotification(pct, text.ifEmpty { step }, true))
             }
             val res: PyObject = try {
-                module.callAttr("download", url, mode, quality, audio, subs, lang, ffmpeg, cb)
+                module.callAttr("download", url, mode, quality, audio, subs, lang,
+                    ffmpeg, embedSubs, embedThumb, cb)
             } catch (e: Exception) {
                 DownloadState.update(true, 0, "Error: ${e.message}", "")
                 continue

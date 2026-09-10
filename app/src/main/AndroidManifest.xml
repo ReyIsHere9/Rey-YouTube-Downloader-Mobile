@@ -13,7 +13,8 @@
     <application
         android:name="com.chaquo.python.android.PyApplication"
         android:label="@string/app_name"
-        android:icon="@drawable/ic_launcher"
+        android:icon="@mipmap/ic_launcher"
+        android:roundIcon="@mipmap/ic_launcher_round"
         android:theme="@style/Theme.Rey"
         android:allowBackup="true"
         android:supportsRtl="true">
@@ -37,6 +38,11 @@
             android:name=".HistoryActivity"
             android:exported="false"
             android:label="History" />
+
+        <activity
+            android:name=".HelpActivity"
+            android:exported="false"
+            android:label="Guide" />
 
         <service
             android:name=".DownloadService"

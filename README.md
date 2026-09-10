@@ -8,11 +8,15 @@ UI + **Chaquopy** (embedded Python) running **yt-dlp**, with a bundled
 ## Features
 
 - Paste one or more links (with a **Paste** button); **Preview titles** shows
-  what each link points to.
+  what each link points to, with **thumbnails** (works for Shorts too).
 - Playlists/multi-video links appear as a tick list — untick what you don't want.
 - **MP4** (video + audio), **Video only**, **Audio only**
-  (mp3 / m4a / opus / wav / original).
-- Quality cap (Best → 360p) and **subtitles** (download + embed; auto-captions).
+  (mp3 / m4a / opus / wav / original). **Irrelevant options grey out** based on
+  what you pick (e.g. no audio-format choice when you're downloading video).
+- Quality cap (Best → 360p).
+- **Subtitles**: pick from a **language list** (or type a custom code); embed
+  them into the MP4 with a toggle. **Embed thumbnail + metadata** toggle too.
+- **In-app Quick Guide** (❓ in the header).
 - **Progress bar** in the app and a **notification progress bar** so you can
   switch apps while it keeps working in the background (foreground service).
 - **Choose where files are saved**: public `Downloads/ReyYouTubeDownloader`

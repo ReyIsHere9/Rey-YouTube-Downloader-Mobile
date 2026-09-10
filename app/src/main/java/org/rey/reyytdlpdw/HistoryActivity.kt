@@ -91,7 +91,8 @@ class HistoryActivity : Activity() {
                 if (uri != null) ShareUtils.share(this, uri, FileSaver.mimeOf(e.path), e.title)
             })
             actions.addView(small("Re-download") {
-                DownloadService.start(this, arrayListOf(e.url), e.mode, "Best", "mp3", false, "en")
+                DownloadService.start(this, arrayListOf(e.url), e.mode, "Best", "mp3",
+                    false, "en", false, true)
             })
             actions.addView(small("Remove") {
                 HistoryStore.remove(this, e)
