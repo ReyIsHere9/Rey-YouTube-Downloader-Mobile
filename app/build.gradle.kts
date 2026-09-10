@@ -69,7 +69,13 @@ android {
 chaquopy {
     defaultConfig {
         version = "3.13"
-        buildPython("C:/Users/AmirDT/AppData/Local/Programs/Python/Python313/python.exe")
+        // Use the Windows Python locally, but let Linux/CI auto-detect python3.
+        val onWindows = System.getProperty("os.name").lowercase().contains("windows")
+        if (onWindows) {
+            buildPython("C:/Users/AmirDT/AppData/Local/Programs/Python/Python313/python.exe")
+        } else {
+            buildPython("python3")
+        }
         pip {
             install("yt-dlp")
         }
