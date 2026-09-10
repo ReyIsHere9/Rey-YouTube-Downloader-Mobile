@@ -77,3 +77,35 @@ tools/build_ffmpeg_full.sh arm64
 Release builds are signed with the keystore referenced by `keystore.properties`
 (certificate: `CN=ReyDT`). Both the keystore and that properties file are
 gitignored — keep them safe.
+
+## Troubleshooting: the APK won't install
+
+The app ships as **arm64-v8a + x86_64**, minSdk **24** (Android 7+), and is
+**self-signed**. It installs fine on normal 64-bit phones. If a phone refuses:
+
+- **"There was a problem parsing the package" / won't open** — the download is
+  usually **truncated**. Re-download over Wi-Fi; the file should be ~**29 MB**.
+- **Xiaomi / Redmi / POCO (MIUI / HyperOS)** — the strictest. Try, in order:
+  1. Settings → Privacy protection → **Special permissions → Install unknown
+     apps** → allow your **File Manager** and **Browser**.
+  2. **Developer options → turn off "MIUI Optimization"** (classic MIUI sideload
+     fix), reboot, then install.
+  3. Open the **Security** app → Settings → turn off **"Scan device for security
+     threats"** / app scanning.
+  4. If Play Protect says **"Blocked"** → tap **Install anyway** (or temporarily
+     turn off Play Protect scanning in the Play Store → Play Protect).
+- **"App not installed" / conflicting signature** — uninstall any older copy of
+  *Rey YouTube Downloader* first, then install fresh.
+- **Not enough space** — free ~100 MB.
+- **Definitive test (shows the real error code)** — install with ADB, which
+  bypasses the OEM installer:
+
+  ```bash
+  adb install -r ReyYouTubeDownloader.apk
+  ```
+  e.g. `INSTALL_FAILED_NO_MATCHING_ABIS` = the phone is 32-bit only (a rare
+  budget device); `INSTALL_FAILED_UPDATE_INCOMPATIBLE` = uninstall the old app.
+
+> A 32-bit-only phone needs a different build (Python 3.11 + `armeabi-v7a`),
+> which this project can be adjusted to produce if needed.
+
