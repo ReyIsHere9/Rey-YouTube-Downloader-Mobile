@@ -1,42 +1,47 @@
 package org.rey.reyytdlpdw
 
+import android.Manifest
 import android.app.Activity
+import android.content.Intent
+import android.content.pm.PackageManager
 import android.graphics.Color
 import android.graphics.Typeface
+import android.os.Build
 import android.os.Bundle
 import android.view.Gravity
 import android.view.View
 import android.view.ViewGroup
 import android.widget.ArrayAdapter
+import android.widget.Button
 import android.widget.CheckBox
 import android.widget.EditText
 import android.widget.LinearLayout
+import android.widget.ProgressBar
 import android.widget.ScrollView
 import android.widget.Spinner
 import android.widget.TextView
 import com.chaquo.python.PyObject
 import com.chaquo.python.Python
-import com.chaquo.python.android.AndroidPlatform
 import kotlin.concurrent.thread
 
 class MainActivity : Activity() {
 
+    private lateinit var theme: AppTheme.C
     private lateinit var url: EditText
     private lateinit var log: TextView
     private lateinit var listWrap: LinearLayout
-
-    // options
+    private lateinit var bar: ProgressBar
+    private lateinit var status: TextView
     private lateinit var formatSp: Spinner
     private lateinit var qualitySp: Spinner
     private lateinit var audioSp: Spinner
     private lateinit var subCb: CheckBox
     private lateinit var subLang: EditText
-    private lateinit var autoCb: CheckBox
-
+    private var appliedDark = false
     private val rowUrls = mutableListOf<String>()
     private val rowCbs = mutableListOf<CheckBox>()
 
-    private fun dp(n: Int): Int = (n * resources.displayMetrics.density).toInt()
+    private fun dp(n: Int) = (n * resources.displayMetrics.density).toInt()
     private fun py() = Python.getInstance()
 
     private fun vspace(h: Int) = View(this).apply {
@@ -45,127 +50,194 @@ class MainActivity : Activity() {
 
     private fun section(s: String) = TextView(this).apply {
         text = s.uppercase()
-        setTextColor(Color.parseColor("#9E9E9E"))
+        setTextColor(theme.muted)
         textSize = 11f
         setTypeface(typeface, Typeface.BOLD)
     }
 
     private fun rowLabel(s: String) = TextView(this).apply {
-        text = s
-        setTextColor(Color.WHITE)
-        textSize = 14f
+        text = s; setTextColor(theme.text); textSize = 14f
     }
 
     private fun spinner(values: Array<String>) = Spinner(this).apply {
         adapter = ArrayAdapter(this@MainActivity,
             android.R.layout.simple_spinner_dropdown_item, values)
-        setBackgroundColor(Color.parseColor("#1E1E1E"))
+        setBackgroundColor(theme.card)
         layoutParams = LinearLayout.LayoutParams(
-            ViewGroup.LayoutParams.MATCH_PARENT,
-            ViewGroup.LayoutParams.WRAP_CONTENT)
+            ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
+    }
+
+    private fun styledButton(text: String, bg: Int, fg: Int): Button = Button(this).apply {
+        this.text = text
+        setBackgroundColor(bg)
+        setTextColor(fg)
     }
 
     override fun onCreate(b: Bundle?) {
+        appliedDark = Prefs.isDark(this)
+        setTheme(if (appliedDark) R.style.Theme_Rey else R.style.Theme_Rey_Light)
         super.onCreate(b)
-        if (!Python.isStarted()) Python.start(AndroidPlatform(this))
+        theme = AppTheme.of(this)
 
         val outer = ScrollView(this)
-        val root = LinearLayout(this)
-        root.orientation = LinearLayout.VERTICAL
-        root.setPadding(dp(16), dp(16), dp(16), dp(16))
-        root.setBackgroundColor(Color.parseColor("#0F0F0F"))
-
-        val header = TextView(this).apply {
-            text = "Rey YouTube Downloader"
-            setTextColor(Color.WHITE)
-            textSize = 22f
-            setTypeface(typeface, Typeface.BOLD)
+        outer.setBackgroundColor(theme.bg)
+        val root = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(16), dp(16), dp(16), dp(16))
+            setBackgroundColor(theme.bg)
         }
+
+        // header
+        val header = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
+        header.addView(TextView(this).apply {
+            text = "Rey YouTube Downloader"
+            setTextColor(theme.text); textSize = 20f
+            setTypeface(typeface, Typeface.BOLD)
+            layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
+        })
+        val hist = TextView(this).apply {
+            text = "History"; setTextColor(theme.accent); textSize = 14f
+            setPadding(dp(8), 0, dp(8), 0)
+            setOnClickListener { startActivity(Intent(this@MainActivity, HistoryActivity::class.java)) }
+        }
+        val gear = TextView(this).apply {
+            text = "\u2699"; setTextColor(theme.text); textSize = 20f
+            setPadding(dp(8), 0, 0, 0)
+            setOnClickListener { startActivity(Intent(this@MainActivity, SettingsActivity::class.java)) }
+        }
+        header.addView(hist); header.addView(gear)
         root.addView(header)
         root.addView(vspace(dp(8)))
 
+        // url
         url = EditText(this).apply {
             hint = "Paste one or more YouTube links, one per line"
-            setTextColor(Color.WHITE)
-            setHintTextColor(Color.GRAY)
-            minLines = 3
-            gravity = Gravity.TOP
+            setTextColor(theme.text); setHintTextColor(theme.muted)
+            setBackgroundColor(theme.panel)
+            minLines = 3; gravity = Gravity.TOP
         }
         root.addView(url)
-        root.addView(vspace(dp(8)))
+        val urlRow = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
+        urlRow.addView(styledButton("Paste", theme.card, theme.text).apply {
+            layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
+            setOnClickListener {
+                val cm = getSystemService(CLIPBOARD_SERVICE) as android.content.ClipboardManager
+                val txt = cm.primaryClip?.getItemAt(0)?.text?.toString() ?: ""
+                if (txt.isNotEmpty()) url.setText(txt)
+            }
+        })
+        urlRow.addView(styledButton("Clear", theme.card, theme.text).apply {
+            layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
+            setOnClickListener { url.setText(""); listWrap.removeAllViews() }
+        })
+        root.addView(urlRow)
+        root.addView(vspace(dp(6)))
 
         root.addView(section("Format"))
         formatSp = spinner(arrayOf("MP4 (video + audio)", "Video only", "Audio only"))
         root.addView(formatSp)
-        root.addView(vspace(dp(6)))
 
         root.addView(section("Quality"))
         qualitySp = spinner(arrayOf("Best", "2160p", "1440p", "1080p", "720p", "480p", "360p"))
         qualitySp.setSelection(3)
         root.addView(qualitySp)
-        root.addView(vspace(dp(6)))
 
         root.addView(section("Audio format (Audio only)"))
         audioSp = spinner(arrayOf("mp3", "m4a", "opus", "wav", "original"))
         root.addView(audioSp)
-        root.addView(vspace(dp(6)))
 
         root.addView(section("Subtitles"))
-        val subRow = LinearLayout(this)
-        subRow.orientation = LinearLayout.HORIZONTAL
-        subCb = CheckBox(this).apply { text = "Download" }
+        val subRow = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
+        subCb = CheckBox(this).apply { text = "Download"; setTextColor(theme.text) }
         subRow.addView(subCb)
         subLang = EditText(this).apply {
-            setText("en")
-            hint = "lang"
-            setTextColor(Color.WHITE)
-            setHintTextColor(Color.GRAY)
+            setText("en"); hint = "lang"
+            setTextColor(theme.text); setHintTextColor(theme.muted)
+            setBackgroundColor(theme.panel)
             layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
         }
         subRow.addView(subLang)
-        autoCb = CheckBox(this).apply { text = "Auto" }
-        autoCb.isChecked = true
-        subRow.addView(autoCb)
         root.addView(subRow)
-        root.addView(vspace(dp(8)))
 
-        val prev = android.widget.Button(this).apply { text = "Preview titles" }
+        root.addView(vspace(dp(6)))
+        val prev = styledButton("Preview titles", theme.card, theme.text)
         prev.setOnClickListener { preview() }
         root.addView(prev)
 
         val listScroll = ScrollView(this)
-        listWrap = LinearLayout(this)
-        listWrap.orientation = LinearLayout.VERTICAL
+        listWrap = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         listScroll.addView(listWrap)
         listScroll.layoutParams = LinearLayout.LayoutParams(
-            ViewGroup.LayoutParams.MATCH_PARENT, dp(260))
+            ViewGroup.LayoutParams.MATCH_PARENT, dp(240))
         root.addView(listScroll)
 
-        val dl = android.widget.Button(this).apply {
-            text = "Download"
-            setTextColor(Color.WHITE)
-            setBackgroundColor(Color.parseColor("#E11D2A"))
-        }
-        dl.setOnClickListener { downloadSelected() }
+        val dl = styledButton("Download", theme.accent, theme.onAccent)
+        dl.textSize = 16f
+        dl.setOnClickListener { startDownload() }
         root.addView(dl)
 
+        bar = ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal).apply {
+            max = 100; progress = 0
+            layoutParams = LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
+        }
+        root.addView(bar)
+        status = TextView(this).apply {
+            text = "Ready."; setTextColor(theme.muted); textSize = 12f
+        }
+        root.addView(status)
+
         log = TextView(this).apply {
-            setTextColor(Color.parseColor("#C9C9C9"))
-            text = ""
-            textSize = 12f
+            setTextColor(theme.muted); text = ""; textSize = 11f
         }
         val logScroll = ScrollView(this)
         logScroll.addView(log)
         logScroll.layoutParams = LinearLayout.LayoutParams(
-            ViewGroup.LayoutParams.MATCH_PARENT, dp(220))
+            ViewGroup.LayoutParams.MATCH_PARENT, dp(180))
         root.addView(logScroll)
 
         outer.addView(root)
         setContentView(outer)
+
+        if (Build.VERSION.SDK_INT >= 33 &&
+            checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) !=
+            PackageManager.PERMISSION_GRANTED) {
+            requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS), 1)
+        }
+    }
+
+    override fun onStart() {
+        super.onStart()
+        DownloadState.listener = { refreshProgress() }
+        refreshProgress()
+    }
+
+    override fun onStop() {
+        super.onStop()
+        DownloadState.listener = null
+    }
+
+    override fun onResume() {
+        super.onResume()
+        if (Prefs.isDark(this) != appliedDark) recreate()
+    }
+
+    private fun refreshProgress() {
+        bar.progress = DownloadState.pct
+        val t = when {
+            DownloadState.running -> DownloadState.status +
+                    (if (DownloadState.current.isNotEmpty()) "  \u00b7  ${DownloadState.current}" else "")
+            DownloadState.status.isNotEmpty() -> DownloadState.status
+            else -> "Ready."
+        }
+        status.text = t
+        if (DownloadState.status.isNotEmpty() && !DownloadState.running) {
+            appendLog(DownloadState.status)
+        }
     }
 
     private fun appendLog(t: String) {
-        log.text = log.text.toString() + "\n" + t
+        log.text = (log.text.toString() + "\n" + t).trim()
     }
 
     private fun links(): List<String> =
@@ -186,85 +258,43 @@ class MainActivity : Activity() {
                     for (o in arr) {
                         val pair = (o as PyObject).asList()
                         if (pair.size < 2) continue
-                        val title = pair.get(0)?.toString() ?: ""
-                        val u = pair.get(1)?.toString() ?: ""
-                        val row = LinearLayout(this)
-                        row.orientation = LinearLayout.HORIZONTAL
-                        val cb = CheckBox(this)
-                        cb.isChecked = true
+                        val title = pair[0]?.toString() ?: ""
+                        val u = pair[1]?.toString() ?: ""
+                        val row = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
+                        val cb = CheckBox(this).apply { isChecked = true }
                         row.addView(cb)
-                        val tv = TextView(this).apply {
-                            text = title
-                            setTextColor(Color.parseColor("#DDDDDD"))
-                            textSize = 13f
+                        row.addView(TextView(this).apply {
+                            text = title; setTextColor(theme.text); textSize = 13f
                             layoutParams = LinearLayout.LayoutParams(
                                 0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
-                        }
-                        row.addView(tv)
+                        })
                         rowUrls.add(u); rowCbs.add(cb)
                         listWrap.addView(row)
                         found++
                     }
-                    if (found == 0) appendLog("No videos found.")
-                    else appendLog("Found " + found + " video(s).")
+                    appendLog(if (found == 0) "No videos found." else "Found $found video(s).")
                 }
             } catch (e: Exception) {
-                runOnUiThread { appendLog("Preview error: " + e.message) }
+                runOnUiThread { appendLog("Preview error: ${e.message}") }
             }
         }
     }
 
-    private fun opts(): Qual {
-        val m = when (formatSp.selectedItemPosition) {
-            1 -> "video"
-            2 -> "audio"
-            else -> "mp4"
-        }
-        return Qual(
-            mode = m,
-            quality = if (qualitySp.selectedItemPosition == 0) "Best"
-                      else qualitySp.selectedItem.toString(),
-            audio = audioSp.selectedItem.toString(),
-            subs = subCb.isChecked,
-            subLang = subLang.text.toString().trim().ifEmpty { "en" }
-        )
-    }
-
-    private data class Qual(
-        val mode: String, val quality: String, val audio: String,
-        val subs: Boolean, val subLang: String
-    )
-
-    private fun downloadSelected() {
-        val q = opts()
-        val ffmpeg = java.io.File(applicationInfo.nativeLibraryDir, "libffmpeg.so")
-            .takeIf { it.exists() }?.path ?: ""
+    private fun startDownload() {
+        if (DownloadState.running) { appendLog("Already downloading."); return }
         val targets = mutableListOf<String>()
-        for (i in rowUrls.indices) {
-            if (i < rowCbs.size && rowCbs[i].isChecked) {
-                targets.add(rowUrls[i])
-            }
+        for (i in rowUrls.indices) if (i < rowCbs.size && rowCbs[i].isChecked) targets.add(rowUrls[i])
+        if (targets.isEmpty()) targets.addAll(links())
+        if (targets.isEmpty()) { appendLog("Paste a link first."); return }
+        val mode = when (formatSp.selectedItemPosition) {
+            1 -> "video"; 2 -> "audio"; else -> "mp4"
         }
-        if (targets.isEmpty()) {
-            val ls = links()
-            if (ls.isEmpty()) { appendLog("Paste a link first."); }
-            else { for (u in ls) targets.add(u) }
-        }
-        if (targets.isEmpty()) { appendLog("Nothing to download."); return }
-        appendLog("Downloading\u2026")
-        val mod = py().getModule("download")
-        thread {
-            try {
-                for (u in targets) {
-                    val r: PyObject = mod.callAttr(
-                        "download", u, q.mode, q.quality, q.audio, q.subs,
-                        q.subLang, ffmpeg)
-                    runOnUiThread { appendLog(r.toString()) }
-                }
-                runOnUiThread { appendLog("Finished.") }
-            } catch (e: Exception) {
-                runOnUiThread { appendLog("Download error: " + e.message) }
-            }
-        }
+        val quality = if (qualitySp.selectedItemPosition == 0) "Best"
+        else qualitySp.selectedItem.toString()
+        val audio = audioSp.selectedItem.toString()
+        val lang = subLang.text.toString().trim().ifEmpty { "en" }
+        appendLog("Queued ${targets.size} download(s)\u2026")
+        DownloadService.start(this, ArrayList(targets), mode, quality, audio,
+            subCb.isChecked, lang)
     }
 }

@@ -1,10 +1,8 @@
-"""yt-dlp helper for the Rey YouTube Downloader Android app.
-
-Functions here are called from Kotlin via Chaquopy. Downloads are written to
-the app's private storage (os.environ["HOME"]) which survives until uninstall.
-"""
+"""yt-dlp helper for the Rey YouTube Downloader Android app (Chaquopy)."""
+import json
 import os
 import sys
+import time
 from os.path import join
 
 
@@ -15,32 +13,18 @@ def _work_dir():
 
 
 def _ffmpeg():
-    """Locate a bundled static ffmpeg binary if we shipped one.
-
-    Android only allows executing binaries from the app's native library
-    directory. We look there (via /proc/self/maps) for a file named `ffmpeg`
-    or `libffmpeg.so`.
-    """
     if sys.platform.startswith("android"):
         import re
-        import glob
         dirs = set()
         try:
             with open("/proc/self/maps") as f:
                 for line in f:
-                    m = re.search(r"^(\\S+)\\s+\\S+\\s+\\S+\\s+\\S+\\s+\\S+\\s+(\\S+)", line)
+                    m = re.search(r"^\S+\s+\S+\s+\S+\s+\S+\s+\S+\s+(\S+)", line)
                     if not m:
                         continue
-                    path = m.group(2)
+                    path = m.group(1)
                     if "/lib/" in path and path.endswith(".so"):
                         dirs.add(path.rsplit("/", 1)[0])
-        except Exception:
-            pass
-        # Chaquopy's own executable dir
-        try:
-            import os
-            for d in os.environ.get("HOME", ""), "":
-                pass
         except Exception:
             pass
         for d in dirs:
@@ -88,15 +72,34 @@ def _quality_sort(q):
 
 
 def download(url, mode="mp4", quality="Best", audio="mp3",
-             subs=False, sub_lang="en", ffmpeg=""):
-    """Download a single URL. Returns a status string."""
+             subs=False, sub_lang="en", ffmpeg="", callback=None):
+    """Download one URL. Calls callback.onProgress(pct, text) if given.
+    Returns JSON: {ok, files:[...], dir, title, error?}"""
     import yt_dlp
     dd = _work_dir()
     outtmpl = join(dd, "%(title).120s [%(id)s].%(ext)s")
+    title = ""
+    t0 = time.time()
+
+    def hook(d):
+        if callback is None:
+            return
+        try:
+            if d.get("status") == "downloading":
+                tot = d.get("total_bytes") or d.get("total_bytes_estimate") or 0
+                done = d.get("downloaded_bytes") or 0
+                pct = int(done * 100 / tot) if tot else 0
+                callback.onProgress(pct, os.path.basename(d.get("filename", "") or ""))
+            elif d.get("status") == "finished":
+                callback.onProgress(100, "processing")
+        except Exception:
+            pass
+
     o = {
         "outtmpl": outtmpl,
         "quiet": True, "no_warnings": True,
         "format_sort": _quality_sort(quality),
+        "progress_hooks": [hook],
     }
     if ffmpeg:
         o["ffmpeg_location"] = ffmpeg
@@ -113,19 +116,33 @@ def download(url, mode="mp4", quality="Best", audio="mp3",
             o["postprocessors"] = [{"key": "FFmpegExtractAudio",
                                     "preferredcodec": audio}]
     else:
-        # prefer a pre-muxed MP4; fall back to merge (needs ffmpeg)
         o["format"] = "b[ext=mp4]/bv*+ba/b"
         o["merge_output_format"] = "mp4"
     if subs:
         langs = ["all"] if sub_lang.lower() == "all" else [sub_lang]
         o["subtitleslangs"] = langs
         o["writesubtitles"] = True
+        o["writeautomaticsub"] = True
         if mode == "mp4":
             o["embedsubs"] = True
             o["subformat"] = "srt"
+
     try:
         with yt_dlp.YoutubeDL(o) as y:
-            y.download([url])
-        return "Saved to %s" % dd
+            info = y.extract_info(url, download=True)
+        title = (info or {}).get("title") or ""
+        files = [rd.get("filepath") for rd in (info or {}).get("requested_downloads", [])
+                 if rd.get("filepath") and os.path.exists(rd["filepath"])]
+        # include side files (separate subtitles, etc.) produced just now
+        try:
+            for f in os.listdir(dd):
+                fp = join(dd, f)
+                if os.path.isfile(fp) and os.path.getmtime(fp) >= t0 - 1:
+                    if fp not in files:
+                        files.append(fp)
+        except OSError:
+            pass
+        return json.dumps({"ok": True, "files": files, "dir": dd, "title": title})
     except Exception as e:
-        return "ERROR: %s" % e
+        return json.dumps({"ok": False, "error": str(e), "files": [], "dir": dd,
+                           "title": title})

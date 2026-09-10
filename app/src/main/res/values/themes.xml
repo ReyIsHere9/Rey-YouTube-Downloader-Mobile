@@ -4,5 +4,14 @@
         <item name="android:navigationBarColor">#0F0F0F</item>
         <item name="android:statusBarColor">#0F0F0F</item>
         <item name="android:colorPrimary">#8B0A1A</item>
+        <item name="android:windowOptOutEdgeToEdgeEnforcement">true</item>
+    </style>
+
+    <style name="Theme.Rey.Light" parent="android:style/Theme.Material.Light.NoActionBar">
+        <item name="android:windowBackground">#FFFFFF</item>
+        <item name="android:navigationBarColor">#FFFFFF</item>
+        <item name="android:statusBarColor">#FFFFFF</item>
+        <item name="android:colorPrimary">#D31225</item>
+        <item name="android:windowOptOutEdgeToEdgeEnforcement">true</item>
     </style>
 </resources>

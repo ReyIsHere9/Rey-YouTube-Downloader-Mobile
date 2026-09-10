@@ -1,0 +1,24 @@
+#!/usr/bin/env bash
+# Minimal pkg-config shim for cross-compiling lame/opus (no system pkg-config).
+args="$*"
+case "$args" in
+  *lame*) pkg=lame ;;
+  *opus*) pkg=opus ;;
+  *) pkg=unknown ;;
+esac
+for a in "$@"; do
+  case "$a" in
+    --exists) exit 0 ;;
+    --modversion) echo "3.100"; exit 0 ;;
+    --cflags)
+      if [ "$pkg" = opus ]; then echo "-I${PKG_PREFIX}/include/opus"
+      else echo "-I${PKG_PREFIX}/include"; fi
+      exit 0 ;;
+    --libs)
+      if [ "$pkg" = lame ]; then echo "-L${PKG_PREFIX}/lib -lmp3lame"
+      elif [ "$pkg" = opus ]; then echo "-L${PKG_PREFIX}/lib -lopus"
+      else echo ""; fi
+      exit 0 ;;
+  esac
+done
+exit 0
